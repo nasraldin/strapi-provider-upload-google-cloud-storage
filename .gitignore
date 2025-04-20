@@ -10,11 +10,13 @@ Icon
 .Trashes
 ._*
 
+
 ############################
 # Linux
 ############################
 
 *~
+
 
 ############################
 # Windows
@@ -28,6 +30,7 @@ $RECYCLE.BIN/
 *.msi
 *.msm
 *.msp
+
 
 ############################
 # Packages
@@ -57,15 +60,17 @@ $RECYCLE.BIN/
 *.out
 *.pid
 
+
 ############################
 # Logs and databases
 ############################
 
 .tmp
 *.log
-# *.sql
+*.sql
 *.sqlite
 *.sqlite3
+
 
 ############################
 # Misc.
@@ -77,6 +82,8 @@ ssl
 nbproject
 public/uploads/*
 !public/uploads/.gitkeep
+.tsbuildinfo
+.eslintcache
 
 ############################
 # Node.js
@@ -91,10 +98,25 @@ node_modules
 .node_history
 
 ############################
+# Package managers
+############################
+
+.yarn/*
+.pnp.*
+yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+
+############################
 # Tests
 ############################
 
 coverage
+.nyc_output
+coverage.lcov
 
 ############################
 # Strapi
@@ -103,29 +125,14 @@ coverage
 .env
 license.txt
 exports
-*.cache
+.strapi
 dist
 build
 .strapi-updater.json
-.strapi
+.strapi-cloud.json
 
 ############################
 # Custom
 ############################
-dist
-exports
-build
 .cache
 .history
-.yarn
-.yarnrc
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-package-lock.json
-
-# local env files
-.env*
