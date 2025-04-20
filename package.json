@@ -1,6 +1,6 @@
 {
   "name": "strapi-provider-upload-gcs-x",
-  "version": "5.0.0",
+  "version": "5.12.0",
   "description": "(Non-official) Google Cloud Storage Provider for Strapi Upload",
   "keywords": [
     "strapi",
@@ -33,24 +33,24 @@
     "url": "git+https://github.com/nasraldin/strapi-provider-upload-google-cloud-storage.git"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.13.0",
+    "@google-cloud/storage": "^7.16.0",
     "slugify": "^1.6.6"
   },
   "devDependencies": {
     "codecov": "^3.8.3",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-import": "^2.30.0",
+    "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^5.2.1",
-    "mocha": "^10.7.3",
+    "eslint-plugin-prettier": "^5.2.6",
+    "mocha": "^11.1.0",
     "mock-require": "^3.0.3",
     "nyc": "^17.1.0",
-    "prettier": "^3.3.3"
+    "prettier": "^3.5.3"
   },
   "engines": {
-    "node": "^18 || ^20",
-    "npm": ">=8"
+    "node": ">=18.0.0 <=22.x.x",
+    "npm": ">=10"
   },
   "strapi": {
     "isProvider": true
