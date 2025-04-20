@@ -50,7 +50,7 @@
   },
   "engines": {
     "node": ">=18.0.0 <=22.x.x",
-    "npm": ">=10"
+    "npm": ">=6.0.0"
   },
   "strapi": {
     "isProvider": true
