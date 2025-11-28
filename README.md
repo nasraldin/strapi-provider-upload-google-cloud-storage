@@ -1,12 +1,37 @@
-# strapi-provider-upload-google-cloud-storage
+<div align="center" style="max-width: 10rem; margin: 0 auto">
+  <img style="width: 150px; height: auto;" src="https://www.sensinum.com/img/open-source/strapi-provider-upload-google-cloud-storage/logo.png" alt="Logo - Strapi Provider Upload - Google Cloud Storage" />
+</div>
+<div align="center">
+  <h1>
+    <span style="display: block">Strapi Provider Upload</span>
+    <span style="display: block; font-size: 1.75rem">Google Cloud Storage</span>
+  </h1>
+  <p><strong>Community</strong> Google Cloud Storage Provider for Strapi Upload</p>
+  <a href="https://www.npmjs.org/package/@strapi-community/strapi-provider-upload-google-cloud-storage">
+    <img alt="NPM version" src="https://img.shields.io/npm/v/@strapi-community/strapi-provider-upload-google-cloud-storage.svg">
+  </a>
+  <a href="https://www.npmjs.org/package/@strapi-community/strapi-provider-upload-google-cloud-storage">
+    <img src="https://img.shields.io/npm/dm/@strapi-community/strapi-provider-upload-google-cloud-storage.svg" alt="Monthly download on NPM" />
+  </a>
+  <a href="https://codecov.io/gh/strapi-community/strapi-provider-upload-google-cloud-storage">
+    <img src="https://codecov.io/gh/strapi-community/strapi-provider-upload-google-cloud-storage/branch/master/graph/badge.svg?token=p4KW9ytA6u" alt="codecov.io" />
+  </a>
+</div>
 
-[![npm version](https://img.shields.io/npm/v/@strapi-community/strapi-provider-upload-google-cloud-storage.svg)](https://www.npmjs.org/package/@strapi-community/strapi-provider-upload-google-cloud-storage)
-[![npm downloads](https://img.shields.io/npm/dm/@strapi-community/strapi-provider-upload-google-cloud-storage.svg)](https://www.npmjs.org/package/@strapi-community/strapi-provider-upload-google-cloud-storage)
-[![coverage](https://codecov.io/gh/strapi-community/strapi-provider-upload-google-cloud-storage/branch/master/graph/badge.svg?token=p4KW9ytA6u)](https://codecov.io/gh/strapi-community/strapi-provider-upload-google-cloud-storage)
+## 📋 Table of Contents
 
-**Non-Official** Google Cloud Storage Provider for Strapi Upload
+- [📦 Installation](#installation)
+- [🪣 Create your Bucket on Google Cloud Storage](#create-bucket)
+- [🔐 Setting up Google authentication](#setup-auth)
+- [⚙️ Setting up the configuration file](#setting-up-the-configuration-file)
+- [🔒 Setting up `strapi::security` middlewares](#setting-up-strapisecurity-middlewares-to-avoid-csp-blocked-url)
+- [📝 Configuration Variables](#how-to-configure-variable)
+- [❓ FAQ](#faq)
+- [🔗 Links](#links)
+- [💬 Community support](#community-support)
+- [📄 License](#license)
 
-## Installation
+## 📦 Installation
 
 Install the package from your app root directory
 
@@ -20,7 +45,7 @@ or `yarn`
 yarn add @strapi-community/strapi-provider-upload-google-cloud-storage
 ```
 
-## <a name="create-bucket"></a> Create your Bucket on Google Cloud Storage
+## 🪣 <a name="create-bucket"></a> Create your Bucket on Google Cloud Storage
 
 The bucket should be created with **fine grained** access control, as the plugin will configure uploaded files with public read access.
 
@@ -30,7 +55,7 @@ The bucket should be created with **fine grained** access control, as the plugin
 ### Where my bucket can be located ?
 - https://cloud.google.com/storage/docs/locations
 
-## <a name="setup-auth"></a> Setting up Google authentication
+## 🔐 <a name="setup-auth"></a> Setting up Google authentication
 
 If you are deploying to a Google Cloud Platform product that supports [Application Default Credentials](https://cloud.google.com/docs/authentication/production#finding_credentials_automatically) (such as App Engine, Cloud Run, and Cloud Functions etc.), then you can skip this step. 
 
@@ -47,7 +72,7 @@ If you are deploying outside GCP, then follow these steps to set up authenticati
 8. Open the Strapi configuration file 
 9. Paste it into the "Service Account JSON" field (as `string` or `JSON`, be careful with indentation)
 
-## Setting up the configuration file
+## ⚙️ Setting up the configuration file
 
 You will find below many examples of configurations, for each example :
 
@@ -55,7 +80,7 @@ You will find below many examples of configurations, for each example :
 2. Set the `#bucketName#` field and replace `Bucket-name` by yours [previously create](#create-bucket)
 3. Default `baseUrl` is working, but you can replace it by yours (if you use a custom baseUrl)
 4. Save the configuration file
-5. Enjoy !
+5. Enjoy!
 
 **Example with application default credentials (minimal setup)**
 
@@ -136,7 +161,7 @@ module.exports = ({ env }) => ({
 
 Environment variable can be changed has your way.
 
-## Setting up `strapi::security` middlewares to avoid CSP blocked url
+## 🔒 Setting up `strapi::security` middlewares to avoid CSP blocked url
 
 Edit `./config/middlewares.js`
 - In the field `img-src` and `media-src` add your own CDN url, by default it's `storage.googleapis.com` but you need to add your own CDN url
@@ -168,13 +193,48 @@ module.exports = [
 ];
 ```
 
-## How to configure variable ?
+## 📝 How to configure variable ?
 
 #### `serviceAccount` :
 
-JSON data provide by Google Account (explained before). If you are deploying to a GCP product that supports Application Default credentials, you can leave this omitted, and authentication will work automatically.
+JSON data provide by Google Account (explained before). 
+
+**For GCP environments (App Engine, Cloud Run, Cloud Functions, GKE, Compute Engine):**
+You can leave this omitted, and authentication will work automatically using Application Default Credentials (ADC). The provider will detect the GCP environment and attempt to use ADC for signing URLs.
+
+**For non-GCP environments (local development, on-premises, other cloud providers):**
+You must provide explicit service account credentials with both `client_email` and `private_key` fields for signed URL generation when `publicFiles` is set to `false`.
+
+**Behavior:**
+- **GCP environment + no serviceAccount**: Uses ADC for signed URLs ✅
+- **GCP environment + explicit serviceAccount**: Uses provided credentials ✅  
+- **Non-GCP environment + no serviceAccount + publicFiles: true**: Returns direct URLs with warning ⚠️
+- **Non-GCP environment + no serviceAccount + publicFiles: false**: Throws error ❌
+- **Non-GCP environment + explicit serviceAccount**: Uses provided credentials ✅
 
 Can be set as a String, JSON Object, or omitted.
+
+**Example for GCP environments (minimal setup):**
+```js
+// No serviceAccount needed - uses ADC automatically
+{
+  bucketName: 'my-bucket',
+  publicFiles: false, // Signed URLs will work with ADC
+}
+```
+
+**Example for non-GCP environments:**
+```js
+{
+  bucketName: 'my-bucket',
+  publicFiles: false,
+  serviceAccount: {
+    project_id: 'your-project',
+    client_email: 'your-service-account@your-project.iam.gserviceaccount.com',
+    private_key: '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n'
+  }
+}
+```
 
 #### `bucketName` :
 
@@ -215,9 +275,28 @@ Boolean to define `skipCheckBucket`, when skipCheckBucket is enabled, we skip to
 
 #### `cacheMaxAge`:
 
-Number to set the cache-control header for uploaded files.
-- Default value : `3600`
+Number to set the cache-control header for uploaded files in seconds. This value is used by the default metadata function to set the `Cache-Control` header as `public, max-age=${cacheMaxAge}`.
+
+- Default value : `3600` (1 hour)
 - Optional
+
+Example:
+
+```js
+module.exports = {
+  upload: {
+    config: {
+      provider: '@strapi-community/strapi-provider-upload-google-cloud-storage',
+      providerOptions: {
+        bucketName: 'my-bucket',
+        cacheMaxAge: 604800, // 7 days in seconds
+      },
+    },
+  },
+};
+```
+
+**Note**: If you provide a custom `metadata` function, the `cacheMaxAge` option will be ignored. You'll need to handle caching in your custom metadata function if needed.
 
 #### `gzip`:
 
@@ -239,12 +318,12 @@ Value to define expiration time for signed URLS. Files are signed when `publicFi
 
 Function that is executed to compute the metadata for a file when it is uploaded. 
 
-When no function is provided, the following metadata is used:
+When no function is provided, the following metadata is used (using the configured `cacheMaxAge` value):
 
-```js
+```ts
 {
   contentDisposition: `inline; filename="${file.name}"`,
-  cacheControl: `public, max-age=${config.cacheMaxAge || 3600}`,
+  cacheControl: `public, max-age=${cacheMaxAge}`, // Uses the cacheMaxAge from your configuration
 }
 ```
 
@@ -253,8 +332,8 @@ When no function is provided, the following metadata is used:
 
 Example:
 
-```js
-  metadata: (file) => ({
+```ts
+  metadata: (file: File) => ({
     cacheControl: `public, max-age=${60 * 60 * 24 * 7}`, // One week
     contentLanguage: 'en-US',
     contentDisposition: `attachment; filename="${file.name}"`,
@@ -267,23 +346,51 @@ The available properties can be found in the [Cloud Storage JSON API documentati
 
 Function that is executed to generate the name of the uploaded file. This method can give more control over the file name and can for example be used to include a custom hashing function or dynamic path.
 
-When no function is provided, the [default algorithm](lib/provider.js) is used.
+When no function is provided, the [default algorithm](src/types.ts#L77-L82) is used.
 
 - Default value: `undefined`
 - Optional
 
 Example:
 
-```js
-  generateUploadFileName: async (file) => {
+```ts
+  generateUploadFileName: async (basePath: string, file: File) => {
     const hash = await ...; // Some hashing function, for example MD-5
     const extension = file.ext.toLowerCase().substring(1);
     return `${extension}/${slugify(path.parse(file.name).name)}-${hash}.${extension}`;
   },
 ```
 
+### `getContentType`:
 
-## FAQ
+Function that is executed to get the content type for a file when it is uploaded. 
+
+When no function is provided, the following content type is used:
+
+```ts
+file.mime
+```
+
+**Important**: When a custom `getContentType` function is provided, the file's MIME type will be updated both in Google Cloud Storage metadata and in the Strapi database to ensure consistency.
+
+- Default value: `undefined`
+- Optional
+
+Example:
+
+```ts
+  getContentType: (file: File) => {
+    // Custom logic to determine content type
+    if (file.ext === '.csv') {
+      return 'text/csv';
+    }
+    return file.mime; // Fallback to original MIME type
+  },
+```
+
+**Note**: This function affects both the `contentType` set in Google Cloud Storage and the `mime` field stored in the Strapi database.
+
+## ❓ FAQ
 
 ### Common errors
 
@@ -304,26 +411,46 @@ Follow this step :
 - Copy the full content of the file
 - Paste it under the variable `ServiceAccount` in `plugins.js` config file in JSON
 
-## Migration
+#### Signed URL Generation Issues
 
-Due to release of Strapi v4, you need to migrate your databases files informations.
-Follow our [migration guide](./MIGRATION_GUIDE.md).
+**Error: `Cannot generate signed URLs without service account credentials`**
 
-## Links
+This error occurs when:
+1. You're running in a **non-GCP environment** (local development, other cloud providers)
+2. You have `publicFiles: false` (requiring signed URLs)
+3. You haven't provided explicit `serviceAccount` credentials
+
+**Solutions:**
+- For **GCP environments**: Ensure your service account has proper permissions (`Storage Object Admin` or `Storage Admin` role)
+- For **non-GCP environments**: Provide explicit `serviceAccount` configuration with `client_email` and `private_key`
+- Alternatively: Set `publicFiles: true` to use direct URLs instead of signed URLs
+
+**Error: `Failed to generate signed URL in GCP environment`**
+
+This error occurs in GCP environments when Application Default Credentials (ADC) cannot sign URLs, typically due to:
+1. Insufficient permissions on the default service account
+2. Missing IAM roles for URL signing
+
+**Solutions:**
+- Ensure your GCP service account has `Storage Object Admin` or `Storage Admin` role
+- Verify that the default service account has signing permissions
+- Consider providing explicit `serviceAccount` credentials if ADC continues to fail
+
+## 🔗 Links
 
 - [Strapi website](http://strapi.io/)
 - [Strapi community on Slack](http://slack.strapi.io)
 - [Strapi news on Twitter](https://twitter.com/strapijs)
 
-## Community support
+## 💬 Community support
 
 - [GitHub](https://github.com/strapi-community/strapi-provider-upload-google-cloud-storage) (Bug reports, contributions)
   
-You can also used official support platform of Strapi, and search `@Lith` (maintainer) 
+You can also used official support platform of Strapi, and search `[VirtusLab]` prefixed people (maintainers) 
 
 - [Discord](https://discord.strapi.io) (For live discussion with the Community and Strapi team)
 - [Community Forum](https://forum.strapi.io) (Questions and Discussions)
 
-## License
+## 📄 License
 
 See the [MIT License](LICENSE) file for licensing information.

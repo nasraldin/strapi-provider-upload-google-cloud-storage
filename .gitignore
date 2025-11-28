@@ -70,6 +70,7 @@ $RECYCLE.BIN/
 *.sql
 *.sqlite
 *.sqlite3
+junit.xml
 
 
 ############################
@@ -77,13 +78,12 @@ $RECYCLE.BIN/
 ############################
 
 *#
-ssl
 .idea
 nbproject
-public/uploads/*
-!public/uploads/.gitkeep
+issues/
 .tsbuildinfo
 .eslintcache
+
 
 ############################
 # Node.js
@@ -94,8 +94,12 @@ lcov.info
 pids
 logs
 results
+build
+dist
 node_modules
 .node_history
+package-lock.json
+
 
 ############################
 # Package managers
@@ -108,7 +112,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-package-lock.json
+
 
 ############################
 # Tests
@@ -118,6 +122,7 @@ coverage
 .nyc_output
 coverage.lcov
 
+
 ############################
 # Strapi
 ############################
@@ -126,13 +131,13 @@ coverage.lcov
 license.txt
 exports
 .strapi
-dist
-build
 .strapi-updater.json
 .strapi-cloud.json
+
 
 ############################
 # Custom
 ############################
+
 .cache
 .history
