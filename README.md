@@ -7,14 +7,11 @@
     <span style="display: block; font-size: 1.75rem">Google Cloud Storage</span>
   </h1>
   <p><strong>Production-Ready</strong> Google Cloud Storage Provider for Strapi Upload</p>
-  <a href="https://www.npmjs.org/package/nasraldin/strapi-provider-upload-gcs-x">
+  <a href="https://www.npmjs.org/package/strapi-provider-upload-gcs-x">
     <img alt="NPM version" src="https://img.shields.io/npm/v/@strapi-community/strapi-provider-upload-google-cloud-storage.svg">
   </a>
-  <a href="https://www.npmjs.org/package/nasraldin/strapi-provider-upload-gcs-x">
-    <img src="https://img.shields.io/npm/dm/@strapi-community/strapi-provider-upload-google-cloud-storage.svg" alt="Monthly download on NPM" />
-  </a>
-  <a href="https://codecov.io/gh/strapi-community/strapi-provider-upload-google-cloud-storage">
-    <img src="https://codecov.io/gh/strapi-community/strapi-provider-upload-google-cloud-storage/branch/master/graph/badge.svg?token=p4KW9ytA6u" alt="codecov.io" />
+  <a href="https://www.npmjs.org/package/strapi-provider-upload-gcs-x">
+    <img src="https://img.shields.io/npm/dm/strapi-provider-upload-gcs-x.svg" alt="Monthly download on NPM" />
   </a>
 </div>
 
@@ -177,6 +174,139 @@ You can override the configuration per environment:
 - `config/env/production/plugins.js`
 
 Files under `config/env/{env}/` will override the default configuration in the main `config` folder.
+
+### Complete Configuration Example
+
+Here's a comprehensive example showing all possible `providerOptions`:
+
+```js
+// config/plugins.js
+module.exports = ({ env }) => ({
+  upload: {
+    config: {
+      provider: 'strapi-provider-upload-gcs-x',
+      providerOptions: {
+        // ============================================
+        // REQUIRED OPTIONS
+        // ============================================
+        bucketName: 'my-strapi-bucket', // Required: GCS bucket name
+
+        // ============================================
+        // AUTHENTICATION (Optional)
+        // ============================================
+        // Can be omitted in GCP environments (uses ADC)
+        // Can be provided as object or JSON string
+        serviceAccount: {
+          project_id: 'your-project-id',
+          client_email: 'your-service-account@project.iam.gserviceaccount.com',
+          private_key:
+            '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n',
+        },
+        // OR as JSON string:
+        // serviceAccount: env.json('GCS_SERVICE_ACCOUNT'),
+
+        // ============================================
+        // CORE OPTIONS
+        // ============================================
+        baseUrl: 'https://storage.googleapis.com/my-strapi-bucket',
+        // OR with placeholder:
+        // baseUrl: 'https://storage.googleapis.com/{bucket-name}',
+        // OR custom CDN:
+        // baseUrl: 'https://cdn.yourdomain.com',
+
+        basePath: 'uploads', // Base path for uploaded files (default: '')
+
+        publicFiles: true, // Set to false for private files (default: true)
+        uniform: false, // Set to true if uniform bucket-level access is enabled (default: false)
+        skipCheckBucket: false, // Skip bucket existence check (default: false)
+
+        // ============================================
+        // CACHING & COMPRESSION
+        // ============================================
+        cacheMaxAge: 3600, // Cache control max-age in seconds (default: 3600 = 1 hour)
+        gzip: 'auto', // Compression: 'auto', true, or false (default: 'auto')
+
+        // ============================================
+        // SIGNED URL OPTIONS
+        // ============================================
+        expires: 15 * 60 * 1000, // Signed URL expiration in milliseconds
+        // Options: number (ms), Date object, or string
+        // Default: 900000 (15 minutes)
+        // Min: 60000 (1 minute), Max: 604800000 (7 days)
+
+        // ============================================
+        // SECURITY OPTIONS
+        // ============================================
+        maxFileSize: 100 * 1024 * 1024, // Maximum file size in bytes (default: 100MB)
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'mp4', 'mov'], // Optional: restrict file types
+        // If not provided, all extensions are allowed
+
+        // ============================================
+        // PERFORMANCE OPTIONS
+        // ============================================
+        uploadTimeout: 300000, // Upload timeout in milliseconds (default: 5 minutes)
+        maxRetries: 3, // Maximum retry attempts (default: 3, range: 0-10)
+        maxConcurrentUploads: 10, // Max concurrent uploads (default: 10)
+
+        // ============================================
+        // CIRCUIT BREAKER (Advanced)
+        // ============================================
+        enableCircuitBreaker: false, // Enable circuit breaker pattern (default: false)
+        circuitBreakerThreshold: 5, // Failures before opening circuit (default: 5)
+        circuitBreakerTimeout: 60000, // Time before retry in ms (default: 60000 = 1 minute)
+
+        // ============================================
+        // CUSTOM FUNCTIONS (Advanced)
+        // ============================================
+
+        // Custom metadata function
+        metadata: (file) => ({
+          cacheControl: `public, max-age=${7 * 24 * 60 * 60}`, // 7 days
+          contentDisposition: `inline; filename="${file.name}"`,
+          contentLanguage: 'en-US',
+          // See: https://cloud.google.com/storage/docs/json_api/v1/objects/insert#request_properties_JSON
+        }),
+
+        // Custom content type function
+        getContentType: (file) => {
+          // Custom logic to determine content type
+          if (file.ext === '.csv') {
+            return 'text/csv';
+          }
+          return file.mime; // Default: use file.mime
+        },
+
+        // Custom file name generation
+        generateUploadFileName: async (basePath, file) => {
+          // Custom logic for file naming
+          const timestamp = Date.now();
+          const extension = file.ext?.toLowerCase() || '';
+          const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          return `${basePath}/${timestamp}-${sanitizedName}${extension}`;
+        },
+
+        // Upload progress tracking
+        onUploadProgress: (bytesUploaded, totalBytes) => {
+          const percentage = ((bytesUploaded / totalBytes) * 100).toFixed(2);
+          console.log(
+            `Upload progress: ${percentage}% (${bytesUploaded}/${totalBytes} bytes)`,
+          );
+          // You can emit events, update UI, etc.
+        },
+      },
+    },
+  },
+});
+```
+
+**Note**: Most options have sensible defaults. You only need to specify options you want to customize. The minimum required configuration is:
+
+```js
+providerOptions: {
+  bucketName: 'my-strapi-bucket',
+  // All other options use defaults
+}
+```
 
 ---
 
@@ -729,7 +859,7 @@ This occurs in GCP environments when Application Default Credentials (ADC) canno
 
 ## 💬 Community Support
 
-- [GitHub](https://github.com/strapi-community/strapi-provider-upload-google-cloud-storage) (Bug reports, contributions)
+- [GitHub](https://github.com/nasraldin/strapi-provider-upload-google-cloud-storage) (Bug reports, contributions)
 
 You can also use the official support platform of Strapi, and search for `[VirtusLab]` prefixed people (maintainers):
 
