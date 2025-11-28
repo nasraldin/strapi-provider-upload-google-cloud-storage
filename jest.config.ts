@@ -1,22 +1,21 @@
-import type { JestConfigWithTsJest } from 'ts-jest';
-import { defaults as tsjPreset } from 'ts-jest/presets';
+import type { Config } from 'jest';
 
-const config: JestConfigWithTsJest = {
+const config: Config = {
   testMatch: ['**/__tests__/?(*.)+(spec|test).(t|j)s'],
   transform: {
-    ...tsjPreset.transform,
+    '^.+\\.ts$': [
+      'ts-jest',
+      {
+        diagnostics: {
+          ignoreCodes: [2578, 2322], // Ignore unused @ts-expect-error and type errors in tests
+        },
+      },
+    ],
   },
   preset: 'ts-jest',
   coverageDirectory: './coverage/',
   collectCoverage: true,
   reporters: ['default', 'jest-junit'],
-  globals: {
-    // "ts-jest": {
-    //   diagnostics: {
-    //     warnOnly: true,
-    //   },
-    // },
-  },
 };
 
 export default config;

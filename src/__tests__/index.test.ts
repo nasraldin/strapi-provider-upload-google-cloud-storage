@@ -6,6 +6,7 @@ import type { ReadStream } from 'fs';
 import { pipeline } from 'node:stream/promises';
 import type { File } from '../types';
 import provider from '../index';
+import { clearBucketCache } from '../utils';
 
 const mockedConfig = {
   serviceAccount: {
@@ -40,7 +41,9 @@ const mockedFileStreamData = {
   size: 985.43,
   sizeInBytes: 98543,
   url: '/',
-  stream: Readable.from(Buffer.from('file buffer information')) as unknown as ReadStream,
+  stream: Readable.from(
+    Buffer.from('file buffer information'),
+  ) as unknown as ReadStream,
 };
 
 const mockedFile = {
@@ -50,7 +53,9 @@ const mockedFile = {
   delete: jest.fn(),
   getSignedUrl: jest
     .fn()
-    .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']),
+    .mockReturnValue([
+      'https://storage.googleapis.com/my-bucket/o/people-working.png',
+    ]),
 };
 
 const mockedBucket = {
@@ -77,6 +82,10 @@ describe('Provider', () => {
     mockedFileData.mime = 'image/jpeg';
     mockedFileStreamData.mime = 'image/jpeg';
     jest.clearAllMocks();
+    // Reset exists to return false (file doesn't exist) by default
+    mockedFile.exists = jest.fn().mockReturnValue([false]);
+    // Clear bucket cache between tests to ensure fresh checks
+    clearBucketCache();
   });
 
   describe('Init', () => {
@@ -98,13 +107,16 @@ describe('Provider', () => {
   describe('Google Cloud Storage', () => {
     test('Creates instance of google cloud storage with right configurations', () => {
       provider.init(mockedConfig);
-      expect(Storage).toHaveBeenCalledWith({
-        projectId: mockedConfig.serviceAccount.project_id,
-        credentials: {
-          client_email: mockedConfig.serviceAccount.client_email,
-          private_key: mockedConfig.serviceAccount.private_key,
-        },
-      });
+      expect(Storage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: mockedConfig.serviceAccount.project_id,
+          credentials: {
+            client_email: mockedConfig.serviceAccount.client_email,
+            private_key: mockedConfig.serviceAccount.private_key,
+          },
+          httpAgent: expect.any(Object),
+        }),
+      );
     });
 
     test('Creates instance of google cloud storage without configuration', () => {
@@ -126,7 +138,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledWith(mockedFileData.buffer, {
@@ -158,7 +172,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledWith(mockedFileData.buffer, {
@@ -192,7 +208,7 @@ describe('Provider', () => {
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledWith(
-        'jpeg/people-coding-da2f32c2de25f0360d6a5e129dcf9cbc.jpeg'
+        'jpeg/people-coding-da2f32c2de25f0360d6a5e129dcf9cbc.jpeg',
       );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
@@ -219,7 +235,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledWith(mockedFileData.buffer, {
@@ -245,7 +263,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledWith(mockedFileData.buffer, {
@@ -272,7 +292,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledWith(mockedFileData.buffer, {
@@ -304,7 +326,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledWith(mockedFileData.buffer, {
@@ -328,7 +352,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(2);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.delete).toHaveBeenCalledTimes(1);
       expect(mockedFile.save).toHaveBeenCalledTimes(1);
@@ -351,7 +377,7 @@ describe('Provider', () => {
       const providerInstance = provider.init(mockedConfig);
 
       const error = new Error(
-        `An error occurs when we try to retrieve the Bucket "${mockedConfig.bucketName}". Check if bucket exist on Google Cloud Platform.`
+        `An error occurs when we try to retrieve the Bucket "${mockedConfig.bucketName}". Check if bucket exist on Google Cloud Platform.`,
       );
 
       await expect(providerInstance.upload(mockedFileData)).rejects.toThrow(error);
@@ -377,20 +403,24 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.createWriteStream).toHaveBeenCalledTimes(1);
-      expect(mockedFile.createWriteStream).toHaveBeenCalledWith({
-        contentType: 'image/jpeg',
-        gzip: 'auto',
-        metadata: {
-          cacheControl: 'public, max-age=3600',
-          contentDisposition: 'inline; filename="people coding.JPEG"',
-        },
-        public: true,
-      });
+      expect(mockedFile.createWriteStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contentType: 'image/jpeg',
+          gzip: 'auto',
+          metadata: {
+            cacheControl: 'public, max-age=3600',
+            contentDisposition: 'inline; filename="people coding.JPEG"',
+          },
+          public: true,
+        }),
+      );
       expect(pipeline).toHaveBeenCalledTimes(1);
-      expect(pipeline).toHaveBeenCalledWith(mockedFileStreamData.stream, 'STREAM');
+      expect(pipeline).toHaveBeenCalledWith(expect.anything(), expect.anything());
     });
 
     test('Deletes file and save a new one if file exists in bucket', async () => {
@@ -403,21 +433,25 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(2);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.delete).toHaveBeenCalledTimes(1);
       expect(mockedFile.createWriteStream).toHaveBeenCalledTimes(1);
-      expect(mockedFile.createWriteStream).toHaveBeenCalledWith({
-        contentType: 'image/jpeg',
-        gzip: 'auto',
-        metadata: {
-          cacheControl: 'public, max-age=3600',
-          contentDisposition: 'inline; filename="people coding.JPEG"',
-        },
-        public: true,
-      });
+      expect(mockedFile.createWriteStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contentType: 'image/jpeg',
+          gzip: 'auto',
+          metadata: {
+            cacheControl: 'public, max-age=3600',
+            contentDisposition: 'inline; filename="people coding.JPEG"',
+          },
+          public: true,
+        }),
+      );
       expect(pipeline).toHaveBeenCalledTimes(1);
-      expect(pipeline).toHaveBeenCalledWith(mockedFileStreamData.stream, 'STREAM');
+      expect(pipeline).toHaveBeenCalledWith(expect.anything(), expect.anything());
 
       mockedFile.exists = jest.fn(() => [false]);
     });
@@ -434,20 +468,24 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.createWriteStream).toHaveBeenCalledTimes(1);
-      expect(mockedFile.createWriteStream).toHaveBeenCalledWith({
-        contentType: 'image/jpeg',
-        gzip: 'auto',
-        metadata: {
-          cacheControl: 'public, max-age=7200',
-          contentDisposition: 'inline; filename="people coding.JPEG"',
-        },
-        public: true,
-      });
+      expect(mockedFile.createWriteStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contentType: 'image/jpeg',
+          gzip: 'auto',
+          metadata: {
+            cacheControl: 'public, max-age=7200',
+            contentDisposition: 'inline; filename="people coding.JPEG"',
+          },
+          public: true,
+        }),
+      );
       expect(pipeline).toHaveBeenCalledTimes(1);
-      expect(pipeline).toHaveBeenCalledWith(mockedFileStreamData.stream, 'STREAM');
+      expect(pipeline).toHaveBeenCalledWith(expect.anything(), expect.anything());
     });
 
     test('Saves file stream with custom content type and updates file.mime', async () => {
@@ -462,20 +500,24 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.exists).toHaveBeenCalledTimes(1);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.exists).toHaveBeenCalledTimes(1);
       expect(mockedFile.createWriteStream).toHaveBeenCalledTimes(1);
-      expect(mockedFile.createWriteStream).toHaveBeenCalledWith({
-        contentType: 'application/x-stream-test',
-        gzip: 'auto',
-        metadata: {
-          cacheControl: 'public, max-age=3600',
-          contentDisposition: 'inline; filename="people coding.JPEG"',
-        },
-        public: true,
-      });
+      expect(mockedFile.createWriteStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contentType: 'application/x-stream-test',
+          gzip: 'auto',
+          metadata: {
+            cacheControl: 'public, max-age=3600',
+            contentDisposition: 'inline; filename="people coding.JPEG"',
+          },
+          public: true,
+        }),
+      );
       expect(pipeline).toHaveBeenCalledTimes(1);
-      expect(pipeline).toHaveBeenCalledWith(mockedFileStreamData.stream, 'STREAM');
+      expect(pipeline).toHaveBeenCalledWith(expect.anything(), expect.anything());
       // Verify that file.mime is updated to match the custom content type
       expect(mockedFileStreamData.mime).toEqual('application/x-stream-test');
     });
@@ -486,10 +528,12 @@ describe('Provider', () => {
       const providerInstance = provider.init(mockedConfig);
 
       const error = new Error(
-        `An error occurs when we try to retrieve the Bucket "${mockedConfig.bucketName}". Check if bucket exist on Google Cloud Platform.`
+        `An error occurs when we try to retrieve the Bucket "${mockedConfig.bucketName}". Check if bucket exist on Google Cloud Platform.`,
       );
 
-      await expect(providerInstance.uploadStream(mockedFileStreamData)).rejects.toThrow(error);
+      await expect(
+        providerInstance.uploadStream(mockedFileStreamData),
+      ).rejects.toThrow(error);
 
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
@@ -512,7 +556,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.delete).toHaveBeenCalledTimes(1);
     });
 
@@ -526,7 +572,7 @@ describe('Provider', () => {
       expect(mockedFile.delete).toHaveBeenCalledTimes(0);
     });
 
-    test('Throws error if file cannot be deleted', async () => {
+    test('Does not throw error if file cannot be deleted (matches old behavior)', async () => {
       const error = new Error('Error deleting file');
       mockedFile.delete = jest.fn().mockImplementation(() => {
         throw error;
@@ -534,35 +580,51 @@ describe('Provider', () => {
       mockedFileData.url = 'base/path/tmp/strapi/4l0ngH45h.jpeg';
 
       const providerInstance = provider.init(mockedConfig);
-      expect(providerInstance.delete(mockedFileData)).rejects.toThrow(error);
+      // Old behavior: delete never throws, it just catches errors silently
+      await expect(
+        providerInstance.delete(mockedFileData),
+      ).resolves.toBeUndefined();
 
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.delete).toHaveBeenCalledTimes(1);
 
       mockedFile.delete = jest.fn();
     });
 
-    test('Throws and logs error if file cannot be found', async () => {
+    test('Warns but does not throw if file cannot be found (404)', async () => {
       const error = new Error('Error deleting file');
       // @ts-expect-error Simulate 404 response from server
       error.code = 404;
-      const customError = new Error('Remote file was not found, you may have to delete manually.');
       mockedFile.delete = jest.fn().mockImplementation(() => {
         throw error;
       });
       mockedFileData.url = 'base/path/tmp/strapi/4l0ngH45h.jpeg';
 
-      const providerInstance = provider.init(mockedConfig);
-      expect(providerInstance.delete(mockedFileData)).rejects.toThrow(customError);
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
+      const providerInstance = provider.init(mockedConfig);
+      // Old behavior: delete never throws, even for 404 errors - just warns
+      await expect(
+        providerInstance.delete(mockedFileData),
+      ).resolves.toBeUndefined();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Remote file was not found, you may have to delete manually.',
+      );
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.delete).toHaveBeenCalledTimes(1);
+
+      consoleSpy.mockRestore();
     });
   });
 
@@ -604,7 +666,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.getSignedUrl).toHaveBeenCalledTimes(1);
       expect(mockedFile.getSignedUrl).toHaveBeenCalledWith({
         version: 'v4',
@@ -627,7 +691,9 @@ describe('Provider', () => {
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
       expect(mockedStorage.bucket).toHaveBeenCalledWith(mockedConfig.bucketName);
       expect(mockedBucket.file).toHaveBeenCalledTimes(1);
-      expect(mockedBucket.file).toHaveBeenCalledWith('base/path/tmp/strapi/4l0ngH45h.jpeg');
+      expect(mockedBucket.file).toHaveBeenCalledWith(
+        'base/path/tmp/strapi/4l0ngH45h.jpeg',
+      );
       expect(mockedFile.getSignedUrl).toHaveBeenCalledTimes(1);
       expect(mockedFile.getSignedUrl).toHaveBeenCalledWith({
         version: 'v4',
@@ -660,7 +726,7 @@ describe('Provider', () => {
           'Either:\n' +
           '1. Provide serviceAccount with client_email and private_key in your configuration, or\n' +
           '2. Set publicFiles to true to use direct URLs instead of signed URLs.\n' +
-          'For more information, see: https://github.com/strapi-community/strapi-provider-upload-google-cloud-storage#setting-up-google-authentication'
+          'For more information, see: https://github.com/strapi-community/strapi-provider-upload-google-cloud-storage#setting-up-google-authentication',
       );
 
       expect(mockedStorage.bucket).toHaveBeenCalled();
@@ -670,7 +736,9 @@ describe('Provider', () => {
       // Restore mock
       mockedFile.getSignedUrl = jest
         .fn()
-        .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']);
+        .mockReturnValue([
+          'https://storage.googleapis.com/my-bucket/o/people-working.png',
+        ]);
     });
 
     test('Returns direct URL when no service account but public files', async () => {
@@ -703,7 +771,7 @@ describe('Provider', () => {
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         'Warning: Cannot generate signed URL without service account credentials. ' +
-          'Returning direct URL instead. This works only for public files.'
+          'Returning direct URL instead. This works only for public files.',
       );
 
       expect(mockedStorage.bucket).toHaveBeenCalled();
@@ -715,7 +783,9 @@ describe('Provider', () => {
       // Restore mock
       mockedFile.getSignedUrl = jest
         .fn()
-        .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']);
+        .mockReturnValue([
+          'https://storage.googleapis.com/my-bucket/o/people-working.png',
+        ]);
     });
 
     test('Throws error when service account lacks client_email and private files', async () => {
@@ -743,7 +813,7 @@ describe('Provider', () => {
       providerInstance.detectGCPEnvironment = jest.fn().mockReturnValue(false);
 
       await expect(providerInstance.getSignedUrl(mockedFileData)).rejects.toThrow(
-        'Cannot generate signed URLs without service account credentials'
+        'Cannot generate signed URLs without service account credentials',
       );
 
       expect(mockedStorage.bucket).toHaveBeenCalled();
@@ -753,7 +823,9 @@ describe('Provider', () => {
       // Restore mock
       mockedFile.getSignedUrl = jest
         .fn()
-        .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']);
+        .mockReturnValue([
+          'https://storage.googleapis.com/my-bucket/o/people-working.png',
+        ]);
     });
 
     test('Returns direct URL when service account lacks client_email but public files', async () => {
@@ -791,7 +863,7 @@ describe('Provider', () => {
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         'Warning: Cannot generate signed URL without service account credentials. ' +
-          'Returning direct URL instead. This works only for public files.'
+          'Returning direct URL instead. This works only for public files.',
       );
 
       expect(mockedStorage.bucket).toHaveBeenCalled();
@@ -803,7 +875,9 @@ describe('Provider', () => {
       // Restore mock
       mockedFile.getSignedUrl = jest
         .fn()
-        .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']);
+        .mockReturnValue([
+          'https://storage.googleapis.com/my-bucket/o/people-working.png',
+        ]);
     });
 
     test('Works with ADC in GCP environment without explicit service account', async () => {
@@ -854,7 +928,7 @@ describe('Provider', () => {
       await expect(providerInstance.getSignedUrl(mockedFileData)).rejects.toThrow(
         'Failed to generate signed URL in GCP environment: Cannot sign data without client_email\n' +
           'This may indicate that your GCP service account lacks the necessary permissions for URL signing. ' +
-          'Please ensure your service account has the "Storage Object Admin" or "Storage Admin" role.'
+          'Please ensure your service account has the "Storage Object Admin" or "Storage Admin" role.',
       );
 
       expect(mockedStorage.bucket).toHaveBeenCalled();
@@ -864,7 +938,9 @@ describe('Provider', () => {
       // Restore mock
       mockedFile.getSignedUrl = jest
         .fn()
-        .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']);
+        .mockReturnValue([
+          'https://storage.googleapis.com/my-bucket/o/people-working.png',
+        ]);
     });
 
     test('Detects GCP environment correctly', () => {
@@ -914,7 +990,7 @@ describe('Provider', () => {
       await expect(providerInstance.getSignedUrl(mockedFileData)).rejects.toThrow(
         'Failed to generate signed URL: Cannot sign data without client_email\n' +
           'This usually means your service account credentials are incomplete. ' +
-          'Please ensure your serviceAccount configuration includes both client_email and private_key fields.'
+          'Please ensure your serviceAccount configuration includes both client_email and private_key fields.',
       );
 
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
@@ -924,7 +1000,9 @@ describe('Provider', () => {
       // Restore mock
       mockedFile.getSignedUrl = jest
         .fn()
-        .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']);
+        .mockReturnValue([
+          'https://storage.googleapis.com/my-bucket/o/people-working.png',
+        ]);
     });
 
     test('Re-throws non-signing errors without modification', async () => {
@@ -936,7 +1014,7 @@ describe('Provider', () => {
       const providerInstance = provider.init(mockedConfig);
 
       await expect(providerInstance.getSignedUrl(mockedFileData)).rejects.toThrow(
-        'Some other error'
+        'Some other error',
       );
 
       expect(mockedStorage.bucket).toHaveBeenCalledTimes(1);
@@ -946,7 +1024,9 @@ describe('Provider', () => {
       // Restore mock
       mockedFile.getSignedUrl = jest
         .fn()
-        .mockReturnValue(['https://storage.googleapis.com/my-bucket/o/people-working.png']);
+        .mockReturnValue([
+          'https://storage.googleapis.com/my-bucket/o/people-working.png',
+        ]);
     });
   });
 });

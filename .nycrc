@@ -1,6 +1,4 @@
 {
   "all": true,
-  "include": [
-    "lib"
-  ]
+  "include": ["lib"]
 }

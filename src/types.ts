@@ -4,7 +4,13 @@ import path from 'node:path';
 import slugify from 'slugify';
 import { z } from 'zod';
 
-const fileSchema = z.object({
+/**
+ * Zod schema for file validation
+ *
+ * Validates file objects passed to upload methods. Includes all standard
+ * Strapi file properties plus optional stream and buffer for uploads.
+ */
+export const fileSchema = z.object({
   name: z.string(),
   alternativeText: z.string().optional(),
   caption: z.string().optional(),
@@ -21,15 +27,28 @@ const fileSchema = z.object({
   path: z.string().optional(),
   provider: z.string().optional(),
   provider_metadata: z.record(z.string(), z.unknown()).optional(),
+  related: z.array(z.object({ ref: z.string() })).optional(), // For generateUploadFileName fallback
   stream: z.unknown().optional(), // `ReadStream` can't be validated easily, so `any` or skip
   buffer: z.unknown().optional(), // same for `Buffer`
 });
 
+/**
+ * File type for upload operations
+ *
+ * Represents a file to be uploaded to Google Cloud Storage.
+ * Extends the validated schema with stream and buffer properties.
+ */
 export type File = z.infer<typeof fileSchema> & {
   stream?: ReadStream;
   buffer?: Buffer;
 };
 
+/**
+ * File attributes for GCS upload
+ *
+ * Metadata and configuration for file uploads including content type,
+ * compression, public/private access, and custom metadata.
+ */
 export type FileAttributes = {
   contentType: string;
   gzip: Options['gzip'];
@@ -37,6 +56,12 @@ export type FileAttributes = {
   public?: boolean;
 };
 
+/**
+ * Zod schema for Google Cloud service account validation
+ *
+ * Validates service account JSON with required fields: project_id,
+ * client_email, and private_key. Used for authentication with GCS.
+ */
 export const serviceAccountSchema = z.object({
   project_id: z.string({
     error: (issue) =>
@@ -58,21 +83,44 @@ export const serviceAccountSchema = z.object({
   }),
 });
 
+/**
+ * Google Cloud service account credentials
+ *
+ * Required for authentication when not using Application Default Credentials (ADC).
+ * Can be provided as object or JSON string (parsed automatically).
+ */
 export type ServiceAccount = z.infer<typeof serviceAccountSchema>;
 
 type MetadataFn = (file: File) => FileMetadata;
 type GetContentTypeFn = (file: File) => string;
-type GenerateUploadFileNameFn = (basePath: string, file: File) => Promise<string> | string;
+type GenerateUploadFileNameFn = (
+  basePath: string,
+  file: File,
+) => Promise<string> | string;
 
 const defaultGetContentType = (file: File) => file.mime;
 
 const defaultGenerateUploadFileName = (basePath: string, file: File) => {
-  const filePath = `${file.path ? file.path.slice(1) : file.hash}/`;
+  // Use file.related[0].ref as fallback if available (matching old behavior)
+  const backupPath =
+    file.related && file.related.length > 0 && file.related[0]?.ref
+      ? `${file.related[0].ref}`
+      : `${file.hash}`;
+  // Old version: file.path is used as-is, but we need to handle leading slash
+  // If file.path starts with /, remove it to avoid double slashes with basePath
+  const normalizedPath = file.path ? file.path.replace(/^\/+/, '') : backupPath;
+  const filePath = `${normalizedPath}/`;
   const extension = file.ext?.toLowerCase() || '';
   const fileName = slugify(path.basename(file.hash));
   return `${basePath}${filePath}${fileName}${extension}`;
 };
 
+/**
+ * Zod schema for provider configuration options
+ *
+ * Validates and provides defaults for all provider configuration options
+ * including security, performance, and stability settings.
+ */
 export const optionsSchema = z.object({
   serviceAccount: z
     .preprocess((input) => {
@@ -81,7 +129,7 @@ export const optionsSchema = z.object({
           return JSON.parse(input);
         } catch {
           throw new Error(
-            'Error parsing data "Service Account JSON", please be sure to copy/paste the full JSON file.'
+            'Error parsing data "Service Account JSON", please be sure to copy/paste the full JSON file.',
           );
         }
       }
@@ -107,10 +155,26 @@ export const optionsSchema = z.object({
       z.date(),
       z
         .number()
-        .min(0)
-        .max(1000 * 60 * 60 * 24 * 7),
+        .min(60) // Minimum 1 minute for security
+        .max(1000 * 60 * 60 * 24 * 7), // Maximum 7 days
     ])
     .default(15 * 60 * 1000),
+  maxFileSize: z
+    .number()
+    .positive()
+    .default(100 * 1024 * 1024), // 100MB default
+  uploadTimeout: z.number().positive().default(300000), // 5 minutes default
+  maxRetries: z.number().int().min(0).max(10).default(3),
+  maxConcurrentUploads: z.number().int().positive().default(10),
+  allowedExtensions: z.array(z.string()).optional(),
+  onUploadProgress: z
+    .custom<
+      (bytesUploaded: number, totalBytes: number) => void
+    >((val) => typeof val === 'function')
+    .optional(),
+  enableCircuitBreaker: z.boolean().or(z.stringbool()).default(false),
+  circuitBreakerThreshold: z.number().int().positive().default(5),
+  circuitBreakerTimeout: z.number().int().positive().default(60000), // 1 minute
   metadata: z.custom<MetadataFn>((val) => typeof val === 'function').optional(),
   getContentType: z
     .custom<GetContentTypeFn>((val) => typeof val === 'function')
@@ -122,9 +186,23 @@ export const optionsSchema = z.object({
     .default(() => defaultGenerateUploadFileName),
 });
 
+/**
+ * Validated provider options type
+ *
+ * All configuration options with defaults applied and validated.
+ */
 export type Options = z.infer<typeof optionsSchema>;
 
-export type DefaultOptions = Partial<Omit<Options, 'serviceAccount' | 'bucketName'>> & {
+/**
+ * Default options type for provider initialization
+ *
+ * Allows partial configuration with only bucketName required.
+ * ServiceAccount can be provided as object or JSON string.
+ * All other options are optional with sensible defaults.
+ */
+export type DefaultOptions = Partial<
+  Omit<Options, 'serviceAccount' | 'bucketName'>
+> & {
   bucketName: string;
   serviceAccount?: ServiceAccount | string;
 };

@@ -1,6 +1,11 @@
 import type { Bucket } from '@google-cloud/storage';
 import type { DefaultOptions, File } from '../types';
-import { checkBucket, getConfigDefaultValues, getExpires } from '../utils';
+import {
+  checkBucket,
+  clearBucketCache,
+  getConfigDefaultValues,
+  getExpires,
+} from '../utils';
 
 const defaultOptions: DefaultOptions = {
   bucketName: 'GC_BUCKET_NAME',
@@ -12,6 +17,13 @@ const defaultOptions: DefaultOptions = {
   gzip: 'auto',
   cacheMaxAge: 3600,
   expires: 900000,
+  maxFileSize: 100 * 1024 * 1024,
+  maxRetries: 3,
+  uploadTimeout: 5 * 60 * 1000,
+  maxConcurrentUploads: 10,
+  enableCircuitBreaker: false,
+  circuitBreakerThreshold: 5,
+  circuitBreakerTimeout: 60 * 1000,
 };
 
 const options: DefaultOptions = {
@@ -27,11 +39,22 @@ const options: DefaultOptions = {
   metadata: jest.fn(),
   getContentType: jest.fn(),
   generateUploadFileName: jest.fn(),
+  maxFileSize: 100 * 1024 * 1024,
+  maxRetries: 3,
+  uploadTimeout: 5 * 60 * 1000,
+  maxConcurrentUploads: 10,
+  enableCircuitBreaker: false,
+  circuitBreakerThreshold: 5,
+  circuitBreakerTimeout: 60 * 1000,
 };
 
 const mockedBucketName = 'my-bucket';
 
 describe('Utils', () => {
+  beforeEach(() => {
+    clearBucketCache();
+  });
+
   describe('Adds default values to the config', () => {
     test('Adds default values if config is not provided', () => {
       const config = getConfigDefaultValues({
@@ -89,14 +112,14 @@ describe('Utils', () => {
       expect(metadata.contentDisposition).toEqual('inline; filename="test.jpg"');
     });
     test('Throws an error if bucket name is not present', () => {
-      // @ts-expect-error Test wrong configuration
-      const functionWithoutBucketName = () => getConfigDefaultValues({});
+      const functionWithoutBucketName = () =>
+        getConfigDefaultValues({} as DefaultOptions);
       const error = new Error('Property "bucketName" is required');
       expect(functionWithoutBucketName).toThrow(error);
     });
     test('Throws an error if bucket name is not a string', () => {
-      // @ts-expect-error Test wrong configuration
-      const functionWithNotStringBucketName = () => getConfigDefaultValues({ bucketName: 1341234 });
+      const functionWithNotStringBucketName = () =>
+        getConfigDefaultValues({ bucketName: 1341234 as unknown as string });
       const error = new Error('Property "bucketName" must be a string');
       expect(functionWithNotStringBucketName).toThrow(error);
     });
@@ -107,76 +130,89 @@ describe('Utils', () => {
       test('Throws error when serviceAccount cannot be parsed as a JSON', () => {
         const serviceAccount = "I'm not a valid JSON";
         const error = new Error(
-          'Error parsing data "Service Account JSON", please be sure to copy/paste the full JSON file.'
+          'Error parsing data "Service Account JSON", please be sure to copy/paste the full JSON file.',
         );
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
       test('Throws error when serviceAccount can be parsed as a JSON, but does not accomplish with correct values', () => {
-        const serviceAccount = '{"project_id": "123", "client_email": "my@email.org"}';
+        const serviceAccount =
+          '{"project_id": "123", "client_email": "my@email.org"}';
         const error = new Error(
-          'Error parsing data "Service Account JSON". Missing "private_key" field in JSON file.'
+          'Error parsing data "Service Account JSON". Missing "private_key" field in JSON file.',
         );
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
       test('Throws error when serviceAccount does not have a project_id field', () => {
-        const serviceAccount = {};
+        const serviceAccount = {} as unknown as DefaultOptions['serviceAccount'];
         const error = new Error(
-          'Error parsing data "Service Account JSON". Missing "project_id" field in JSON file.'
+          'Error parsing data "Service Account JSON". Missing "project_id" field in JSON file.',
         );
-        // @ts-expect-error Test wrong configuration
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
       test('Throws error when project_id field is not a string', () => {
-        const serviceAccount = { project_id: 1 };
+        const serviceAccount = {
+          project_id: 1,
+        } as unknown as DefaultOptions['serviceAccount'];
         const error = new Error(
-          'Error parsing data "Service Account JSON". Property "project_id" must be a string.'
+          'Error parsing data "Service Account JSON". Property "project_id" must be a string.',
         );
-        // @ts-expect-error Test wrong configuration
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
       test('Throws error when serviceAccount does not have a client_email field', () => {
         const serviceAccount = {
           project_id: '123',
-        };
+        } as unknown as DefaultOptions['serviceAccount'];
         const error = new Error(
-          'Error parsing data "Service Account JSON". Missing "client_email" field in JSON file.'
+          'Error parsing data "Service Account JSON". Missing "client_email" field in JSON file.',
         );
-        // @ts-expect-error Test wrong configuration
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
       test('Throws error when client_email field is not a string', () => {
         const serviceAccount = {
           project_id: '123',
           client_email: 1,
-        };
+        } as unknown as DefaultOptions['serviceAccount'];
         const error = new Error(
-          'Error parsing data "Service Account JSON". Property "client_email" must be a string.'
+          'Error parsing data "Service Account JSON". Property "client_email" must be a string.',
         );
-        // @ts-expect-error Test wrong configuration
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
       test('Throws error when serviceAccount does not have a private_key field', () => {
         const serviceAccount = {
           project_id: '123',
           client_email: 'my@email.org',
-        };
+        } as unknown as DefaultOptions['serviceAccount'];
         const error = new Error(
-          'Error parsing data "Service Account JSON". Missing "private_key" field in JSON file.'
+          'Error parsing data "Service Account JSON". Missing "private_key" field in JSON file.',
         );
-        // @ts-expect-error Test wrong configuration
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
       test('Throws error when private_key field is not a string', () => {
         const serviceAccount = {
           project_id: '123',
           client_email: 'my@email.org',
           private_key: 123,
-        };
+        } as unknown as DefaultOptions['serviceAccount'];
         const error = new Error(
-          'Error parsing data "Service Account JSON". Property "private_key" must be a string.'
+          'Error parsing data "Service Account JSON". Property "private_key" must be a string.',
         );
-        // @ts-expect-error Test wrong configuration
-        expect(() => getConfigDefaultValues({ ...defaultOptions, serviceAccount })).toThrow(error);
+        expect(() =>
+          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
+        ).toThrow(error);
       });
     });
     describe('Valid config', () => {
@@ -236,7 +272,7 @@ describe('Utils', () => {
       } as unknown as Bucket;
 
       const error = new Error(
-        `An error occurs when we try to retrieve the Bucket "${mockedBucketName}". Check if bucket exist on Google Cloud Platform.`
+        `An error occurs when we try to retrieve the Bucket "${mockedBucketName}". Check if bucket exist on Google Cloud Platform.`,
       );
 
       expect(checkBucket(mockedBucket, mockedBucketName)).rejects.toThrow(error);
@@ -246,7 +282,9 @@ describe('Utils', () => {
 
   describe('Get expires param', () => {
     beforeAll(() => {
-      jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z').getTime());
+      jest
+        .useFakeTimers()
+        .setSystemTime(new Date('2024-01-01T00:00:00Z').getTime());
     });
 
     afterAll(() => {
@@ -346,7 +384,11 @@ describe('Utils', () => {
 
       const config = getConfigDefaultValues(defaultOptions);
 
-      const runTest = async ([basePath, expectedFileName, fileData]: [string, string, File]) => {
+      const runTest = async ([basePath, expectedFileName, fileData]: [
+        string,
+        string,
+        File,
+      ]) => {
         const generatedFileName = config.generateUploadFileName(basePath, fileData);
         expect(generatedFileName).toEqual(expectedFileName);
       };
