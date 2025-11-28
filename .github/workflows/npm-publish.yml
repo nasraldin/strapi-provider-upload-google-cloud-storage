@@ -1,21 +1,31 @@
-name: Publish Package to npmjs
+name: Publish to NPM
 on:
   release:
     types: [published]
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
-      # Setup .npmrc file to publish to npm
-      - uses: actions/setup-node@v6
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: 24
-          registry-url: 'https://registry.npmjs.org'
-      - run: npm install
-      - run: npm publish --provenance --access public
+          cache: 'yarn'
+          registry-url: 'https://registry.npmjs.org/'
+      - name: Install dependencies
+        run: yarn install
+      - name: Build the plugin
+        run: yarn build:prod
+      - name: Publish package
+        run: |
+          if [ "${{ github.event.release.prerelease }}" == "true" ]; then
+            yarn publish --access public --tag beta
+          else
+            yarn publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
