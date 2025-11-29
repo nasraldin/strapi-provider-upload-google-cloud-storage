@@ -162,7 +162,7 @@ module.exports = ({ env }) => ({
         uniform: env.bool('GCS_UNIFORM', false),
       },
     },
-    sizeLimit: 100 * 1024 * 1024, // 100MB (optional, provider also validates)
+    sizeLimit: 100 * 1024 * 1024, // 100MB (optional)
     // Add security configuration to remove the warning
     security: {
       // You can also configure other security options here
@@ -194,8 +194,6 @@ module.exports = ({ env }) => ({
   },
 });
 ```
-
-**Note**: The provider has its own `maxFileSize` validation in `providerOptions`, but Strapi's `security.sizeLimit` provides an additional validation layer at the framework level. Both can be configured for defense in depth.
 
 ### Environment-Specific Configuration
 
@@ -877,14 +875,6 @@ This occurs in GCP environments when Application Default Credentials (ADC) canno
 - Ensure your GCP service account has `Storage Object Admin` or `Storage Admin` role
 - Verify that the default service account has signing permissions
 - Consider providing explicit `serviceAccount` credentials if ADC continues to fail
-
----
-
-## 🔗 Links
-
-- [Strapi website](http://strapi.io/)
-- [Strapi community on Slack](http://slack.strapi.io)
-- [Strapi news on Twitter](https://twitter.com/strapijs)
 
 ---
 
