@@ -162,9 +162,40 @@ module.exports = ({ env }) => ({
         uniform: env.bool('GCS_UNIFORM', false),
       },
     },
+    sizeLimit: 100 * 1024 * 1024, // 100MB (optional, provider also validates)
+    // Add security configuration to remove the warning
+    security: {
+      // You can also configure other security options here
+      allowedTypes: env.array('ALLOWED_MIMETYPES'),
+      deniedTypes: env.array('DENIED_MIMETYPES'),
+    },
   },
 });
 ```
+
+### Upload Security Configuration
+
+To remove the warning about missing upload security configuration, add the `security` section to your upload plugin config:
+
+```js
+// config/plugins.js
+module.exports = ({ env }) => ({
+  upload: {
+    config: {
+      provider: 'strapi-provider-upload-gcs-x',
+      providerOptions: {
+        // ... your provider options ...
+      },
+    },
+    // Security configuration (recommended)
+    security: {
+      // This is Strapi's additional layer of validation
+    },
+  },
+});
+```
+
+**Note**: The provider has its own `maxFileSize` validation in `providerOptions`, but Strapi's `security.sizeLimit` provides an additional validation layer at the framework level. Both can be configured for defense in depth.
 
 ### Environment-Specific Configuration
 
