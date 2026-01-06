@@ -10,9 +10,14 @@
  */
 
 import { Storage } from '@google-cloud/storage';
-import { createReadStream, createWriteStream, unlinkSync, existsSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import {
+  createReadStream,
+  createWriteStream,
+  unlinkSync,
+  existsSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import provider from '../index';
 import { clearBucketCache } from '../utils';
 
@@ -40,7 +45,7 @@ describeIf('Integration Tests (Large Files)', () => {
     }
 
     providerInstance = provider.init({
-      bucketName: TEST_BUCKET_NAME!,
+      bucketName: TEST_BUCKET_NAME || '',
       serviceAccount: TEST_SERVICE_ACCOUNT,
       maxFileSize: 200 * 1024 * 1024, // 200MB for large file tests
       uploadTimeout: 600000, // 10 minutes for large uploads
@@ -90,10 +95,10 @@ describeIf('Integration Tests (Large Files)', () => {
         const chunk = Buffer.alloc(Math.min(chunkSize, remaining), 'A');
         written += chunk.length;
 
-        if (!writeStream.write(chunk)) {
-          writeStream.once('drain', writeChunk);
-        } else {
+        if (writeStream.write(chunk)) {
           writeChunk();
+        } else {
+          writeStream.once('drain', writeChunk);
         }
       };
 
@@ -113,7 +118,7 @@ describeIf('Integration Tests (Large Files)', () => {
       const fileSize = 100 * 1024 * 1024; // 100MB
       const testFile = await createTestFile(fileSize);
 
-      const fs = await import('fs');
+      const fs = await import('node:fs');
       const file = {
         buffer: fs.readFileSync(testFile),
         name: 'large-file-100mb.bin',
@@ -144,7 +149,7 @@ describeIf('Integration Tests (Large Files)', () => {
             }
           : undefined,
       );
-      const bucket = storage.bucket(TEST_BUCKET_NAME!);
+      const bucket = storage.bucket(TEST_BUCKET_NAME);
       const fileName = file.url.replace(
         `https://storage.googleapis.com/${TEST_BUCKET_NAME}/`,
         '',
@@ -192,7 +197,7 @@ describeIf('Integration Tests (Large Files)', () => {
             }
           : undefined,
       );
-      const bucket = storage.bucket(TEST_BUCKET_NAME!);
+      const bucket = storage.bucket(TEST_BUCKET_NAME);
       const fileName = file.url.replace(
         `https://storage.googleapis.com/${TEST_BUCKET_NAME}/`,
         '',
@@ -215,7 +220,7 @@ describeIf('Integration Tests (Large Files)', () => {
       const progressUpdates: Array<{ uploaded: number; total: number }> = [];
 
       const providerWithProgress = provider.init({
-        bucketName: TEST_BUCKET_NAME!,
+        bucketName: TEST_BUCKET_NAME,
         serviceAccount: TEST_SERVICE_ACCOUNT,
         maxFileSize: 200 * 1024 * 1024,
         uploadTimeout: 600000,
@@ -224,7 +229,7 @@ describeIf('Integration Tests (Large Files)', () => {
         },
       });
 
-      const fs = await import('fs');
+      const fs = await import('node:fs');
       const file = {
         buffer: fs.readFileSync(testFile),
         name: 'progress-test.bin',
@@ -239,8 +244,8 @@ describeIf('Integration Tests (Large Files)', () => {
       await providerWithProgress.upload(file);
 
       expect(progressUpdates.length).toBeGreaterThan(0);
-      expect(progressUpdates[progressUpdates.length - 1].uploaded).toBe(fileSize);
-      expect(progressUpdates[progressUpdates.length - 1].total).toBe(fileSize);
+      expect(progressUpdates.at(-1)?.uploaded).toBe(fileSize);
+      expect(progressUpdates.at(-1)?.total).toBe(fileSize);
       console.log(`Progress updates received: ${progressUpdates.length}`);
 
       // Cleanup
@@ -252,7 +257,7 @@ describeIf('Integration Tests (Large Files)', () => {
             }
           : undefined,
       );
-      const bucket = storage.bucket(TEST_BUCKET_NAME!);
+      const bucket = storage.bucket(TEST_BUCKET_NAME);
       const fileName = file.url.replace(
         `https://storage.googleapis.com/${TEST_BUCKET_NAME}/`,
         '',
@@ -273,7 +278,7 @@ describeIf('Integration Tests (Large Files)', () => {
         ),
       );
 
-      const fs = await import('fs');
+      const fs = await import('node:fs');
       const files = testFiles.map((filePath, i) => ({
         buffer: fs.readFileSync(filePath),
         name: `concurrent-${i}.bin`,
@@ -308,7 +313,7 @@ describeIf('Integration Tests (Large Files)', () => {
             }
           : undefined,
       );
-      const bucket = storage.bucket(TEST_BUCKET_NAME!);
+      const bucket = storage.bucket(TEST_BUCKET_NAME);
       await Promise.all(
         files.map((file) => {
           const fileName = file.url.replace(
@@ -331,7 +336,7 @@ describeIf('Integration Tests (Large Files)', () => {
       // Monitor memory usage
       const initialMemory = process.memoryUsage().heapUsed;
 
-      const fs = await import('fs');
+      const fs = await import('node:fs');
       const file = {
         buffer: fs.readFileSync(testFile),
         name: 'memory-test.bin',
@@ -364,7 +369,7 @@ describeIf('Integration Tests (Large Files)', () => {
             }
           : undefined,
       );
-      const bucket = storage.bucket(TEST_BUCKET_NAME!);
+      const bucket = storage.bucket(TEST_BUCKET_NAME);
       const fileName = file.url.replace(
         `https://storage.googleapis.com/${TEST_BUCKET_NAME}/`,
         '',

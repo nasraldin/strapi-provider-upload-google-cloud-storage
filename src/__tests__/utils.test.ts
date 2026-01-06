@@ -126,15 +126,22 @@ describe('Utils', () => {
   });
 
   describe('Checks the service account config', () => {
+    // Helper function to reduce nesting
+    const expectConfigError = (
+      serviceAccount: DefaultOptions['serviceAccount'],
+      expectedError: Error,
+    ) => {
+      const config: DefaultOptions = { ...defaultOptions, serviceAccount };
+      expect(() => getConfigDefaultValues(config)).toThrow(expectedError);
+    };
+
     describe('Invalid config', () => {
       test('Throws error when serviceAccount cannot be parsed as a JSON', () => {
         const serviceAccount = "I'm not a valid JSON";
         const error = new Error(
           'Error parsing data "Service Account JSON", please be sure to copy/paste the full JSON file.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
       test('Throws error when serviceAccount can be parsed as a JSON, but does not accomplish with correct values', () => {
         const serviceAccount =
@@ -142,18 +149,14 @@ describe('Utils', () => {
         const error = new Error(
           'Error parsing data "Service Account JSON". Missing "private_key" field in JSON file.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
       test('Throws error when serviceAccount does not have a project_id field', () => {
         const serviceAccount = {} as unknown as DefaultOptions['serviceAccount'];
         const error = new Error(
           'Error parsing data "Service Account JSON". Missing "project_id" field in JSON file.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
       test('Throws error when project_id field is not a string', () => {
         const serviceAccount = {
@@ -162,9 +165,7 @@ describe('Utils', () => {
         const error = new Error(
           'Error parsing data "Service Account JSON". Property "project_id" must be a string.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
       test('Throws error when serviceAccount does not have a client_email field', () => {
         const serviceAccount = {
@@ -173,9 +174,7 @@ describe('Utils', () => {
         const error = new Error(
           'Error parsing data "Service Account JSON". Missing "client_email" field in JSON file.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
       test('Throws error when client_email field is not a string', () => {
         const serviceAccount = {
@@ -185,9 +184,7 @@ describe('Utils', () => {
         const error = new Error(
           'Error parsing data "Service Account JSON". Property "client_email" must be a string.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
       test('Throws error when serviceAccount does not have a private_key field', () => {
         const serviceAccount = {
@@ -197,9 +194,7 @@ describe('Utils', () => {
         const error = new Error(
           'Error parsing data "Service Account JSON". Missing "private_key" field in JSON file.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
       test('Throws error when private_key field is not a string', () => {
         const serviceAccount = {
@@ -210,9 +205,7 @@ describe('Utils', () => {
         const error = new Error(
           'Error parsing data "Service Account JSON". Property "private_key" must be a string.',
         );
-        expect(() =>
-          getConfigDefaultValues({ ...defaultOptions, serviceAccount }),
-        ).toThrow(error);
+        expectConfigError(serviceAccount, error);
       });
     });
     describe('Valid config', () => {

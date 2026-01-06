@@ -1,9 +1,9 @@
-import type { GetSignedUrlConfig } from '@google-cloud/storage';
+import type { File as GCSFile, GetSignedUrlConfig } from '@google-cloud/storage';
 import { Storage } from '@google-cloud/storage';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import https from 'node:https';
-import type { DefaultOptions, File } from './types';
+import type { DefaultOptions, File, Options } from './types';
 import {
   CircuitBreaker,
   createProgressStream,
@@ -188,6 +188,249 @@ export default {
       });
     };
 
+    // Helper function to handle existing file deletion
+    const handleExistingFile = (
+      file: File,
+      deleteFn: () => Promise<void> | Promise<unknown>,
+    ) => {
+      console.info('File already exists. Try to remove it.');
+      // Fire and forget delete for performance
+      Promise.resolve(deleteFn()).catch((err) => {
+        console.warn(
+          `Failed to delete existing file: ${maskCredentials(err instanceof Error ? err.message : String(err))}`,
+        );
+      });
+    };
+
+    // Helper function to execute upload with retry and circuit breaker
+    const executeUpload = async (
+      uploadFn: () => Promise<void>,
+      operationName: string,
+    ): Promise<void> => {
+      await withTimeout(
+        circuitBreaker
+          ? circuitBreaker.execute(() =>
+              retryWithBackoff(uploadFn, config.maxRetries),
+            )
+          : retryWithBackoff(uploadFn, config.maxRetries),
+        config.uploadTimeout,
+        operationName,
+      );
+    };
+
+    // Helper function to finalize upload (set URL and MIME)
+    const finalizeUpload = (
+      file: File,
+      fullFileName: string,
+      fileAttributes: { contentType: string },
+    ): void => {
+      file.url = `${baseUrl}/${fullFileName}`;
+      file.mime = fileAttributes.contentType;
+      console.debug(`File successfully uploaded to ${file.url}`);
+    };
+
+    // Helper function to upload large buffer as stream
+    const uploadLargeBuffer = async (
+      buffer: Buffer,
+      bucketFile: GCSFile,
+      fileAttributes: {
+        contentType: string;
+        gzip: Options['gzip'];
+        metadata: Record<string, unknown>;
+        public?: boolean;
+      },
+    ): Promise<void> => {
+      const stream = Readable.from(buffer);
+      const totalBytes = buffer.length;
+      const RESUMABLE_THRESHOLD = 5 * 1024 * 1024; // 5MB
+      const useResumable = buffer.length > RESUMABLE_THRESHOLD;
+
+      // Add progress tracking if callback provided
+      let uploadStream: Readable = stream;
+      if (config.onUploadProgress) {
+        uploadStream = stream.pipe(
+          createProgressStream(config.onUploadProgress, totalBytes),
+        ) as Readable;
+      }
+
+      const writeStreamOptions = {
+        ...fileAttributes,
+        resumable: useResumable,
+        metadata: fileAttributes.metadata,
+      };
+
+      const uploadFn = () =>
+        pipeline(uploadStream, bucketFile.createWriteStream(writeStreamOptions));
+
+      await executeUpload(uploadFn, 'File upload');
+    };
+
+    // Helper function to upload small buffer directly
+    const uploadSmallBuffer = async (
+      buffer: Buffer,
+      bucketFile: GCSFile,
+      fileAttributes: {
+        contentType: string;
+        gzip: Options['gzip'];
+        metadata: Record<string, unknown>;
+        public?: boolean;
+      },
+    ): Promise<void> => {
+      const uploadFn = () => bucketFile.save(buffer, fileAttributes);
+
+      // Track progress for small buffers too if callback provided
+      if (config.onUploadProgress) {
+        config.onUploadProgress(buffer.length, buffer.length);
+      }
+
+      await executeUpload(uploadFn, 'File upload');
+    };
+
+    // Helper function to upload stream
+    const uploadFileStream = async (
+      stream: Readable,
+      totalBytes: number,
+      bucketFile: GCSFile,
+      fileAttributes: {
+        contentType: string;
+        gzip: Options['gzip'];
+        metadata: Record<string, unknown>;
+        public?: boolean;
+      },
+    ): Promise<void> => {
+      const RESUMABLE_THRESHOLD = 5 * 1024 * 1024; // 5MB
+      const useResumable = totalBytes > RESUMABLE_THRESHOLD;
+
+      // Add progress tracking if callback provided
+      let uploadStream: Readable = stream;
+      if (config.onUploadProgress && totalBytes > 0) {
+        uploadStream = stream.pipe(
+          createProgressStream(config.onUploadProgress, totalBytes),
+        ) as Readable;
+      }
+
+      const writeStreamOptions = {
+        ...fileAttributes,
+        resumable: useResumable,
+        metadata: fileAttributes.metadata,
+      };
+
+      const uploadFn = () =>
+        pipeline(uploadStream, bucketFile.createWriteStream(writeStreamOptions));
+
+      await executeUpload(uploadFn, 'File stream upload');
+    };
+
+    // Helper function to validate expiration time for signed URLs
+    const validateExpiration = (expiresValue: number | Date | string): number => {
+      const now = Date.now();
+      const minExpires = now + 60 * 1000; // Minimum 1 minute
+      const maxExpires = now + 7 * 24 * 60 * 60 * 1000; // Maximum 7 days
+      const expiresTime =
+        typeof expiresValue === 'number'
+          ? expiresValue
+          : new Date(expiresValue).getTime();
+
+      if (expiresTime < now) {
+        throw new Error(
+          `Signed URL expiration must be in the future (got ${Math.round((expiresTime - now) / 1000)}s)`,
+        );
+      }
+      if (expiresTime > maxExpires) {
+        throw new Error(
+          `Signed URL expiration must be at most 7 days from now (got ${Math.round((expiresTime - now) / (24 * 60 * 60 * 1000))} days)`,
+        );
+      }
+      // Warn for very short expiration times (< 1 minute) but don't block
+      if (expiresTime < minExpires) {
+        console.warn(
+          `Signed URL expiration is very short (${Math.round((expiresTime - now) / 1000)}s). Consider using at least 1 minute for production.`,
+        );
+      }
+      return expiresTime;
+    };
+
+    // Helper function to generate signed URL from GCS
+    const generateSignedUrl = async (
+      fileName: string,
+      expiresValue: number | Date | string,
+    ): Promise<string> => {
+      const options: GetSignedUrlConfig = {
+        version: 'v4',
+        action: 'read',
+        expires: expiresValue,
+      };
+
+      const urlResult = await withTimeout(
+        retryWithBackoff(async () => {
+          const result = await GCS.bucket(config.bucketName)
+            .file(fileName)
+            .getSignedUrl(options);
+          if (!result) {
+            throw new Error('getSignedUrl returned undefined');
+          }
+          return result;
+        }, config.maxRetries),
+        config.uploadTimeout,
+        'Get signed URL',
+      );
+
+      if (!urlResult) {
+        throw new Error('Failed to generate signed URL: No result returned');
+      }
+      const url = Array.isArray(urlResult) ? urlResult[0] : urlResult;
+
+      if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+        throw new Error('Invalid signed URL generated');
+      }
+      return url;
+    };
+
+    // Helper function to handle credential errors for signed URLs
+    const handleCredentialError = (
+      error: Error,
+      file: File,
+      detectGCP: () => boolean,
+    ): { url: string } => {
+      const isGCPEnvironment = detectGCP();
+
+      if (!isGCPEnvironment && !serviceAccount?.client_email) {
+        // Non-GCP environment requires explicit service account credentials
+        if (!config.publicFiles) {
+          throw new Error(
+            'Cannot generate signed URLs without service account credentials. ' +
+              'Either:\n' +
+              '1. Provide serviceAccount with client_email and private_key in your configuration, or\n' +
+              '2. Set publicFiles to true to use direct URLs instead of signed URLs.\n' +
+              'For more information, see: https://github.com/strapi-community/strapi-provider-upload-google-cloud-storage#setting-up-google-authentication',
+          );
+        }
+
+        // Fallback to direct URL for public files in non-GCP environments
+        console.warn(
+          'Warning: Cannot generate signed URL without service account credentials. ' +
+            'Returning direct URL instead. This works only for public files.',
+        );
+        return { url: file.url };
+      }
+
+      // For GCP environments, provide more specific error message
+      if (isGCPEnvironment) {
+        throw new Error(
+          `Failed to generate signed URL in GCP environment: ${error.message}\n` +
+            'This may indicate that your GCP service account lacks the necessary permissions for URL signing. ' +
+            'Please ensure your service account has the "Storage Object Admin" or "Storage Admin" role.',
+        );
+      }
+
+      // Fallback error for other cases
+      throw new Error(
+        `Failed to generate signed URL: ${error.message}\n` +
+          'This usually means your service account credentials are incomplete. ' +
+          'Please ensure your serviceAccount configuration includes both client_email and private_key fields.',
+      );
+    };
+
     return {
       /**
        * Upload a file to Google Cloud Storage using a buffer
@@ -227,82 +470,23 @@ export default {
           try {
             const { fileAttributes, bucketFile, fullFileName, fileExists } =
               await prepareUploadFile(file, config, basePath, GCS);
+
             if (fileExists) {
-              console.info('File already exists. Try to remove it.');
-              // Fire and forget delete for performance
-              this.delete(file).catch((err) => {
-                console.warn(
-                  `Failed to delete existing file: ${maskCredentials(err instanceof Error ? err.message : String(err))}`,
-                );
-              });
+              handleExistingFile(file, () => this.delete(file));
             }
 
             if (!file.buffer) {
               throw new Error('File buffer is required for upload');
             }
 
-            if (file.buffer) {
-              // Convert large buffers to streams for memory efficiency (>10MB)
-              const LARGE_BUFFER_THRESHOLD = 10 * 1024 * 1024; // 10MB
-              const RESUMABLE_THRESHOLD = 5 * 1024 * 1024; // 5MB - use resumable uploads
-              const useResumable = file.buffer.length > RESUMABLE_THRESHOLD;
-
-              if (file.buffer.length > LARGE_BUFFER_THRESHOLD) {
-                const stream = Readable.from(file.buffer);
-                const totalBytes = file.buffer.length;
-
-                // Add progress tracking if callback provided
-                let uploadStream: Readable = stream;
-                if (config.onUploadProgress) {
-                  uploadStream = stream.pipe(
-                    createProgressStream(config.onUploadProgress, totalBytes),
-                  ) as Readable;
-                }
-
-                const writeStreamOptions = {
-                  ...fileAttributes,
-                  resumable: useResumable,
-                  metadata: fileAttributes.metadata,
-                };
-
-                const uploadFn = () =>
-                  pipeline(
-                    uploadStream,
-                    bucketFile.createWriteStream(writeStreamOptions),
-                  );
-
-                await withTimeout(
-                  circuitBreaker
-                    ? circuitBreaker.execute(() =>
-                        retryWithBackoff(uploadFn, config.maxRetries),
-                      )
-                    : retryWithBackoff(uploadFn, config.maxRetries),
-                  config.uploadTimeout,
-                  'File upload',
-                );
-              } else {
-                const uploadFn = () =>
-                  bucketFile.save(file.buffer!, fileAttributes);
-
-                // Track progress for small buffers too if callback provided
-                if (config.onUploadProgress && file.buffer) {
-                  config.onUploadProgress(file.buffer.length, file.buffer.length);
-                }
-
-                await withTimeout(
-                  circuitBreaker
-                    ? circuitBreaker.execute(() =>
-                        retryWithBackoff(uploadFn, config.maxRetries),
-                      )
-                    : retryWithBackoff(uploadFn, config.maxRetries),
-                  config.uploadTimeout,
-                  'File upload',
-                );
-              }
-              file.url = `${baseUrl}/${fullFileName}`;
-              file.mime = fileAttributes.contentType;
-              console.debug(`File successfully uploaded to ${file.url}`);
+            const LARGE_BUFFER_THRESHOLD = 10 * 1024 * 1024; // 10MB
+            if (file.buffer.length > LARGE_BUFFER_THRESHOLD) {
+              await uploadLargeBuffer(file.buffer, bucketFile, fileAttributes);
+            } else {
+              await uploadSmallBuffer(file.buffer, bucketFile, fileAttributes);
             }
+
+            finalizeUpload(file, fullFileName, fileAttributes);
           } catch (error) {
             const errorMessage =
               error instanceof Error ? error.message : String(error);
@@ -351,60 +535,24 @@ export default {
           try {
             const { fileAttributes, bucketFile, fullFileName, fileExists } =
               await prepareUploadFile(file, config, basePath, GCS);
+
             if (fileExists) {
-              console.info('File already exists. Try to remove it.');
-              // Fire and forget delete for performance
-              this.delete(file).catch((err) => {
-                console.warn(
-                  `Failed to delete existing file: ${maskCredentials(err instanceof Error ? err.message : String(err))}`,
-                );
-              });
+              handleExistingFile(file, () => this.delete(file));
             }
 
             if (!file.stream) {
               throw new Error('File stream is required for uploadStream');
             }
 
-            if (file.stream) {
-              // Use resumable uploads for large files (>5MB)
-              const RESUMABLE_THRESHOLD = 5 * 1024 * 1024; // 5MB
-              const useResumable =
-                (file.sizeInBytes || file.size || 0) > RESUMABLE_THRESHOLD;
-              const totalBytes = file.sizeInBytes || file.size || 0;
+            const totalBytes = file.sizeInBytes || file.size || 0;
+            await uploadFileStream(
+              file.stream,
+              totalBytes,
+              bucketFile,
+              fileAttributes,
+            );
 
-              // Add progress tracking if callback provided
-              let uploadStream: Readable = file.stream;
-              if (config.onUploadProgress && totalBytes > 0) {
-                uploadStream = file.stream.pipe(
-                  createProgressStream(config.onUploadProgress, totalBytes),
-                ) as Readable;
-              }
-
-              const writeStreamOptions = {
-                ...fileAttributes,
-                resumable: useResumable,
-                metadata: fileAttributes.metadata,
-              };
-
-              const uploadFn = () =>
-                pipeline(
-                  uploadStream,
-                  bucketFile.createWriteStream(writeStreamOptions),
-                );
-
-              await withTimeout(
-                circuitBreaker
-                  ? circuitBreaker.execute(() =>
-                      retryWithBackoff(uploadFn, config.maxRetries),
-                    )
-                  : retryWithBackoff(uploadFn, config.maxRetries),
-                config.uploadTimeout,
-                'File stream upload',
-              );
-              file.url = `${baseUrl}/${fullFileName}`;
-              file.mime = fileAttributes.contentType;
-              console.debug(`File successfully uploaded to ${file.url}`);
-            }
+            finalizeUpload(file, fullFileName, fileAttributes);
           } catch (error) {
             const errorMessage =
               error instanceof Error ? error.message : String(error);
@@ -491,73 +639,18 @@ export default {
        */
       async getSignedUrl(file: File): Promise<{ url: string }> {
         try {
-          // Validate expires configuration
-          const expiresValue = getExpires(config.expires);
-          const now = Date.now();
-          const minExpires = now + 60 * 1000; // Minimum 1 minute
-          const maxExpires = now + 7 * 24 * 60 * 60 * 1000; // Maximum 7 days
-          const expiresTime =
-            typeof expiresValue === 'number'
-              ? expiresValue
-              : new Date(expiresValue).getTime();
-
-          // Validate expiration bounds (allow 0 for testing, but warn for production)
-          // Minimum 1 minute for security, but allow shorter for testing
-          if (expiresTime < now) {
-            throw new Error(
-              `Signed URL expiration must be in the future (got ${Math.round((expiresTime - now) / 1000)}s)`,
-            );
-          }
-          if (expiresTime > maxExpires) {
-            throw new Error(
-              `Signed URL expiration must be at most 7 days from now (got ${Math.round((expiresTime - now) / (24 * 60 * 60 * 1000))} days)`,
-            );
-          }
-          // Warn for very short expiration times (< 1 minute) but don't block
-          if (expiresTime < minExpires) {
-            console.warn(
-              `Signed URL expiration is very short (${Math.round((expiresTime - now) / 1000)}s). Consider using at least 1 minute for production.`,
-            );
-          }
-
           // Validate URL format
           if (!file.url || typeof file.url !== 'string') {
             throw new Error('Invalid file URL provided for signed URL generation');
           }
 
-          // First, try to generate signed URL - this works with ADC in GCP environments
-          const options: GetSignedUrlConfig = {
-            version: 'v4',
-            action: 'read',
-            expires: expiresValue,
-          };
+          // Validate and get expiration time
+          const expiresValue = getExpires(config.expires);
+          validateExpiration(expiresValue);
+
+          // Generate signed URL
           const fileName = file.url.replace(`${baseUrl}/`, '');
-
-          // Wrap the GCS call to ensure errors propagate correctly
-          const urlResult = await withTimeout(
-            retryWithBackoff(async () => {
-              const result = await GCS.bucket(config.bucketName)
-                .file(fileName)
-                .getSignedUrl(options);
-              if (!result) {
-                throw new Error('getSignedUrl returned undefined');
-              }
-              return result;
-            }, config.maxRetries),
-            config.uploadTimeout,
-            'Get signed URL',
-          );
-
-          // Extract URL from result array - ensure we have a valid result
-          if (!urlResult) {
-            throw new Error('Failed to generate signed URL: No result returned');
-          }
-          const url = Array.isArray(urlResult) ? urlResult[0] : urlResult;
-
-          // Validate generated URL
-          if (!url || typeof url !== 'string' || !url.startsWith('http')) {
-            throw new Error('Invalid signed URL generated');
-          }
+          const url = await generateSignedUrl(fileName, expiresValue);
 
           return { url };
         } catch (error) {
@@ -566,47 +659,7 @@ export default {
             error instanceof Error &&
             error.message.includes('Cannot sign data without')
           ) {
-            // Check if we're in a GCP environment where ADC should work
-            const isGCPEnvironment = this.detectGCPEnvironment();
-
-            if (
-              !isGCPEnvironment &&
-              (!serviceAccount || !serviceAccount.client_email)
-            ) {
-              // Non-GCP environment requires explicit service account credentials
-              if (!config.publicFiles) {
-                throw new Error(
-                  'Cannot generate signed URLs without service account credentials. ' +
-                    'Either:\n' +
-                    '1. Provide serviceAccount with client_email and private_key in your configuration, or\n' +
-                    '2. Set publicFiles to true to use direct URLs instead of signed URLs.\n' +
-                    'For more information, see: https://github.com/strapi-community/strapi-provider-upload-google-cloud-storage#setting-up-google-authentication',
-                );
-              }
-
-              // Fallback to direct URL for public files in non-GCP environments
-              console.warn(
-                'Warning: Cannot generate signed URL without service account credentials. ' +
-                  'Returning direct URL instead. This works only for public files.',
-              );
-              return { url: file.url };
-            }
-
-            // For GCP environments, provide more specific error message
-            if (isGCPEnvironment) {
-              throw new Error(
-                `Failed to generate signed URL in GCP environment: ${error.message}\n` +
-                  'This may indicate that your GCP service account lacks the necessary permissions for URL signing. ' +
-                  'Please ensure your service account has the "Storage Object Admin" or "Storage Admin" role.',
-              );
-            }
-
-            // Fallback error for other cases
-            throw new Error(
-              `Failed to generate signed URL: ${error.message}\n` +
-                'This usually means your service account credentials are incomplete. ' +
-                'Please ensure your serviceAccount configuration includes both client_email and private_key fields.',
-            );
+            return handleCredentialError(error, file, this.detectGCPEnvironment);
           }
 
           // Re-throw other errors as-is (preserve original error)

@@ -1,8 +1,8 @@
 import { Storage } from '@google-cloud/storage';
 import slugify from 'slugify';
-import path from 'path';
-import { Readable } from 'stream';
-import type { ReadStream } from 'fs';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import type { ReadStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import type { File } from '../types';
 import provider from '../index';
@@ -77,6 +77,12 @@ jest.mock('node:stream/promises', () => ({
 }));
 
 describe('Provider', () => {
+  // Helper functions to reduce nesting in tests
+  const generateTestHash = (): Promise<string> =>
+    new Promise((resolve) => {
+      setTimeout(() => resolve('da2f32c2de25f0360d6a5e129dcf9cbc'), 0);
+    });
+
   beforeEach(() => {
     mockedFileData.url = '/';
     mockedFileData.mime = 'image/jpeg';
@@ -193,9 +199,7 @@ describe('Provider', () => {
       const config = {
         ...mockedConfig,
         async generateUploadFileName(basePath: string, file: File) {
-          const hash = await new Promise((resolve) => {
-            setTimeout(() => resolve('da2f32c2de25f0360d6a5e129dcf9cbc'), 0);
-          });
+          const hash = await generateTestHash();
           const extension = file.ext?.toLowerCase().substring(1);
           return `${extension}/${slugify(path.parse(file.name).name)}-${hash}.${extension}`;
         },

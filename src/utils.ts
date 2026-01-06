@@ -27,11 +27,11 @@ import {
 export const sanitizePath = (path: string): string => {
   if (!path) return '';
   return path
-    .replace(/\.\./g, '') // Remove path traversal attempts
-    .replace(/\/+/g, '/') // Normalize multiple slashes
+    .replaceAll('..', '') // Remove path traversal attempts
+    .replace(/\/+/g, '/') // NOSONAR: Normalize multiple slashes
     .replace(/^\/+/, '') // Remove leading slashes
     .replace(/\/+$/, '') // Remove trailing slashes
-    .replace(/[^a-zA-Z0-9._/-]/g, '_'); // Replace unsafe characters
+    .replace(/[^a-zA-Z0-9._/-]/g, '_'); // NOSONAR:Replace unsafe characters
 };
 
 /**
@@ -152,9 +152,9 @@ export const validateMimeType = (file: File): void => {
  */
 export const maskCredentials = (message: string): string => {
   return message
-    .replace(/private_key["\s:=]+[^"}\s,]+/gi, 'private_key="***MASKED***"')
-    .replace(/client_email["\s:=]+[^"}\s,]+/gi, 'client_email="***MASKED***"')
-    .replace(/project_id["\s:=]+[^"}\s,]+/gi, 'project_id="***MASKED***"');
+    .replace(/private_key["\s:=]+[^"}\s,]+/gi, 'private_key="***MASKED***"') // NOSONAR
+    .replace(/client_email["\s:=]+[^"}\s,]+/gi, 'client_email="***MASKED***"') // NOSONAR
+    .replace(/project_id["\s:=]+[^"}\s,]+/gi, 'project_id="***MASKED***"'); // NOSONAR
 };
 
 /**
@@ -388,8 +388,8 @@ export class CircuitBreaker {
    * @param timeout - Time in milliseconds before attempting half-open state
    */
   constructor(
-    private threshold: number,
-    private timeout: number,
+    private readonly threshold: number,
+    private readonly timeout: number,
   ) {}
 
   /**
@@ -467,7 +467,7 @@ const get = (obj: any, path: string, defaultValue: any = undefined): any => {
           res !== null && res !== undefined ? res[key] : res,
         obj,
       );
-  const result = travel(/[,[\]]+?/) || travel(/[,[\].]+?/);
+  const result = travel(/[,[\]]+/) || travel(/[,[\].]+/);
   return result === undefined || result === obj ? defaultValue : result;
 };
 
@@ -497,7 +497,7 @@ const get = (obj: any, path: string, defaultValue: any = undefined): any => {
 export const mergeConfigs = (providerConfig: DefaultOptions): DefaultOptions => {
   // Access global strapi object if available (Strapi providers have access to it)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const globalStrapi = (global as any).strapi || (globalThis as any).strapi;
+  const globalStrapi = (globalThis as any).strapi;
 
   if (globalStrapi) {
     const customGcsConfig = get(globalStrapi, 'config.gcs', {});
@@ -540,7 +540,7 @@ export const getConfigDefaultValues = (config: DefaultOptions) => {
       const defaultGetMetadata = (cacheMaxAge: number) => (file: File) => {
         const asciiFileName = file.name
           .normalize('NFKD')
-          .replace(/[\u0300-\u036f]/g, '');
+          .replace(/[\u0300-\u036f]/g, ''); // NOSONAR: Replace unicode characters (needed for filename normalization)
         return {
           contentDisposition: `inline; filename="${asciiFileName}"`,
           cacheControl: `public, max-age=${cacheMaxAge}`,
@@ -635,7 +635,7 @@ export const checkBucket = async (
         `An error occurs when we try to retrieve the Bucket "${bucketName}". Check if bucket exist on Google Cloud Platform.`,
       );
     }
-    return Promise.resolve();
+    return;
   }
 
   // Check bucket existence
@@ -647,8 +647,6 @@ export const checkBucket = async (
       `An error occurs when we try to retrieve the Bucket "${bucketName}". Check if bucket exist on Google Cloud Platform.`,
     );
   }
-
-  return Promise.resolve();
 };
 
 /**
