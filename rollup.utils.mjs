@@ -8,11 +8,9 @@ import dynamicImportVars from '@rollup/plugin-dynamic-import-vars';
 
 import commonjs from '@rollup/plugin-commonjs';
 import image from '@rollup/plugin-image';
-import html from 'rollup-plugin-html';
 
 const basePlugins = () => [
   image(),
-  html(),
   json(),
   nodeResolve({
     extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
@@ -64,7 +62,7 @@ const baseConfig = (baseDir) => {
         sourcemap: true,
       },
     ],
-    plugins: basePlugins(baseDir),
+    plugins: basePlugins(),
   });
 };
 
