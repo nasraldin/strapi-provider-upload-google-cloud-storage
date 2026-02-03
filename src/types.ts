@@ -159,10 +159,14 @@ export const optionsSchema = z.object({
         .max(1000 * 60 * 60 * 24 * 7), // Maximum 7 days
     ])
     .default(15 * 60 * 1000),
-  maxFileSize: z
-    .number()
-    .positive()
-    .default(100 * 1024 * 1024), // 100MB default
+  maxFileSize: z.preprocess(
+    (val) =>
+      typeof val === 'number' && Number.isFinite(val) && val > 0 ? val : undefined,
+    z
+      .number()
+      .positive()
+      .default(100 * 1024 * 1024),
+  ), // Coerce NaN/invalid to 100MB default
   uploadTimeout: z.number().positive().default(300000), // 5 minutes default
   maxRetries: z.number().int().min(0).max(10).default(3),
   maxConcurrentUploads: z.number().int().positive().default(10),
