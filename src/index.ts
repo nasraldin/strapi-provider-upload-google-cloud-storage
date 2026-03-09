@@ -666,8 +666,10 @@ export default {
           if (error instanceof Error) {
             throw error;
           }
-          // If error is not an Error instance, wrap it
-          throw new Error(`Failed to generate signed URL: ${String(error)}`);
+          // If error is not an Error instance, wrap it while preserving the original value
+          throw new Error(`Failed to generate signed URL: ${String(error)}`, {
+            cause: error,
+          });
         }
       },
 

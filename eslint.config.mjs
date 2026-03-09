@@ -3,7 +3,7 @@ import typescriptEslint from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
-import nodePlugin from 'eslint-plugin-node';
+import nPlugin from 'eslint-plugin-n';
 import prettierPlugin from 'eslint-plugin-prettier';
 import globals from 'globals';
 
@@ -51,7 +51,7 @@ export default [
     plugins: {
       '@typescript-eslint': typescriptEslint,
       import: importPlugin,
-      node: nodePlugin,
+      n: nPlugin,
       prettier: prettierPlugin,
     },
     rules: {
@@ -69,14 +69,14 @@ export default [
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
 
-      // Node.js rules
-      'node/no-missing-import': [
+      // Node.js rules (via eslint-plugin-n)
+      'n/no-missing-import': [
         'error',
         {
           tryExtensions: ['.ts', '.js', '.json'],
         },
       ],
-      'node/no-unsupported-features/es-syntax': 'off', // TypeScript handles this
+      'n/no-unsupported-features/es-syntax': 'off', // TypeScript handles this
 
       // General rules
       'no-param-reassign': ['error', { props: false }],

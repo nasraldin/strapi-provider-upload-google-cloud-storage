@@ -552,7 +552,7 @@ export const getConfigDefaultValues = (config: DefaultOptions) => {
     return parsedConfig;
   } catch (err) {
     if (err instanceof z.ZodError) {
-      throw new Error(err.issues[0]?.message);
+      throw new Error(err.issues[0]?.message, { cause: err });
     } else {
       throw err;
     }
