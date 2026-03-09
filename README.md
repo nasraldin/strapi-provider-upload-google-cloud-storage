@@ -17,7 +17,7 @@
 
 ---
 
-## 🚀 What's New (2025 Refactor)
+## 🚀 What's New
 
 This library has been **completely refactored** from JavaScript to TypeScript with enterprise-grade improvements:
 
